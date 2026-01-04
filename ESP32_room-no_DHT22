@@ -33,7 +33,7 @@ void setup() {
   WiFi.begin("safety", "safety");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.println("WLAN Verbindungsversuch...");
+    Serial.println("WLAN Verbindungsversuch..."); delay(500);
   }
 
   // MQTT-Client mit Broker verbinden
@@ -43,11 +43,10 @@ void setup() {
     Serial.println("ESP32_Werkstatt-01_DHT22: Verbindung zum Broker wird hergestellt.");
     delay(3000);
   }
-
   if (client.connect("ESP32_Werkstatt-01_DHT22", mqtt_user, mqtt_pass)) {
-    Serial.println("ESP32_Werkstatt-01_DHT22: WLAN-Verbindung erfolgreich hergestellt.");
+    Serial.println("ESP32_Werkstatt-01_DHT22: Verbindung zum Broker erfolgreich hergestellt.");
   } else {
-    Serial.println("ESP32_Werkstatt-01_DHT22: WLAN-Verbindung fehlgeschlagen.");
+    Serial.println("ESP32_Werkstatt-01_DHT22: Mosquitto-Verbindung fehlgeschlagen.");
   }
   // Topics abonnieren
   client.subscribe(topic_ib);
