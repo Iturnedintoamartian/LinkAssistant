@@ -1,15 +1,15 @@
 // Library initialisation (actual try: ivosys.de/blog)
-#include "DHT.h"   //Sensors
-#include "WiFi.h"  // WiFi
-#include "PubSubClient.h" //MQTT
+#include "DHT.h"           //Sensors
+#include "WiFi.h"          // WiFi
+#include "PubSubClient.h"  //MQTT
 
-// DHT sensor info and init
+// DHT sensor info und Aufruf
 #define DHTPIN 21
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
 // WiFi & MQTT connection
-const char* mqttServer = "safety";
+const char* mqttServer = "192.168.2.132";
 uint16_t mqttPort = safety;
 const char* mqtt_user = "safety";
 const char* mqtt_pass = "safety";
@@ -17,13 +17,13 @@ const char* clientID = "ESP32_Werkstatt-01_DHT22";
 WiFiClient espClient;  //Client erstellen
 PubSubClient client(espClient);
 
-const char* topic_t = "Link/UG/Werkstatt/Klima/Temperatur";        //publiziertes Thema1 temp
-const char* topic_LF = "Link/UG/Werkstatt/Klima/Luftfeuchte_rel";  // publiziertes Thema2 Luftfeuchte
-const char* topic_ib = "Link/UG/Werkstatt/Klima/inbound";          // abonniertes Thema
+const char* topic_t = "Link/UG/Werkstatt/Klima/Temperatur";          //publiziertes Thema1 t
+const char* topic_rHum = "Link/UG/Werkstatt/Klima/Luftfeuchte";          //publiziertes Thema2 rHum
+const char* topic_ib = "Link/UG/Werkstatt/Klima/inbound";  // abonniertes Thema inbound
 
 //Timer anstelle delay
-long sensor_abfrage_timer = 0;
-long sensor_verzoegerung = 1000;
+unsigned long timer = 0;
+const long verzoegerung = 300000; 
 
 void setup() {
   // put your setup code here, to run once:
@@ -33,7 +33,8 @@ void setup() {
   WiFi.begin("safety", "safety");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.println("WLAN Verbindungsversuch..."); delay(500);
+    Serial.println("WLAN Verbindungsversuch...");
+    delay(500);
   }
 
   // MQTT-Client mit Broker verbinden
@@ -41,12 +42,12 @@ void setup() {
   while (!client.connected()) {
     client.connect(clientID, mqtt_user, mqtt_pass);
     Serial.println("ESP32_Werkstatt-01_DHT22: Verbindung zum Broker wird hergestellt.");
-    delay(3000);
+    delay(1000);
   }
   if (client.connect("ESP32_Werkstatt-01_DHT22", mqtt_user, mqtt_pass)) {
     Serial.println("ESP32_Werkstatt-01_DHT22: Verbindung zum Broker erfolgreich hergestellt.");
   } else {
-    Serial.println("ESP32_Werkstatt-01_DHT22: Mosquitto-Verbindung fehlgeschlagen.");
+    Serial.println("ESP32_Werkstatt-01_DHT22: Broker-Verbindung fehlgeschlagen.");
   }
   // Topics abonnieren
   client.subscribe(topic_ib);
@@ -57,26 +58,28 @@ void setup() {
 
 void loop() {
   client.loop();
-  // read humidity
-  float relHum = dht.readHumidity();
-  // read temperature in Celsius
-  float temp = dht.readTemperature();
+  unsigned long timer_aktuell = millis();
+  if (timer_aktuell - timer >= verzoegerung) {
+    timer = timer_aktuell;
+    // read humidity
+    float relHum = dht.readHumidity();
+    // read temperature in Celsius
+    float temp = dht.readTemperature();
 
-  // check whether the reading is successful or not
-  if (isnan(temp) || isnan(relHum)) {
-    Serial.println("Failed DHT22 reading.");
-  } else {
-    Serial.print("rel. Humidity:");
-    Serial.print(relHum);
-    Serial.print("%");
-    Serial.print("  |  ");
-    Serial.print("Temperature:");
-    Serial.print(temp);
-    Serial.println("°C");
-    // Temperatur über MQTT veröffentlichen
-    client.publish(topic_t, String(temp).c_str());
-    // Luftfeuchte über MQTT veröffentlichen
-    client.publish(topic_LF, String(relHum).c_str());
+    // check whether the reading is successful or not
+    if (isnan(temp) || isnan(relHum)) {
+      Serial.println("Failed DHT22 reading.");
+    } else {
+      Serial.print("rel. Humidity:");
+      Serial.print(relHum);
+      Serial.print("%");
+      Serial.print("  |  ");
+      Serial.print("Temperature:");
+      Serial.print(temp);
+      Serial.println("°C");
+      // Daten über MQTT veröffentlichen
+      client.publish(topic_t, String(temp).c_str());
+      client.publish(topic_rHum, String(relHum).c_str());
+    }
   }
-  delay(10000);  //5min wait 300000
 }
