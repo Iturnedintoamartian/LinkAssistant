@@ -1,0 +1,83 @@
+// Library initialisation (actual try: ivosys.de/blog)
+#include "DHT.h"   //Sensors
+#include "WiFi.h"  // WiFi
+#include "PubSubClient.h" //MQTT
+
+// DHT sensor info and init
+#define DHTPIN 21
+#define DHTTYPE DHT22
+DHT dht(DHTPIN, DHTTYPE);
+
+// WiFi & MQTT connection
+const char* mqttServer = "safety";
+uint16_t mqttPort = safety;
+const char* mqtt_user = "safety";
+const char* mqtt_pass = "safety";
+const char* clientID = "ESP32_Werkstatt-01_DHT22";
+WiFiClient espClient;  //Client erstellen
+PubSubClient client(espClient);
+
+const char* topic_t = "Link/UG/Werkstatt/Klima/Temperatur";        //publiziertes Thema1 temp
+const char* topic_LF = "Link/UG/Werkstatt/Klima/Luftfeuchte_rel";  // publiziertes Thema2 Luftfeuchte
+const char* topic_ib = "Link/UG/Werkstatt/Klima/inbound";          // abonniertes Thema
+
+//Timer anstelle delay
+long sensor_abfrage_timer = 0;
+long sensor_verzoegerung = 1000;
+
+void setup() {
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  dht.begin();  // initialize the DHT22 sensor
+
+  WiFi.begin("safety", "safety");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("WLAN Verbindungsversuch...");
+  }
+
+  // MQTT-Client mit Broker verbinden
+  client.setServer(mqttServer, mqttPort);
+  while (!client.connected()) {
+    client.connect(clientID, mqtt_user, mqtt_pass);
+    Serial.println("ESP32_Werkstatt-01_DHT22: Verbindung zum Broker wird hergestellt.");
+    delay(3000);
+  }
+
+  if (client.connect("ESP32_Werkstatt-01_DHT22", mqtt_user, mqtt_pass)) {
+    Serial.println("ESP32_Werkstatt-01_DHT22: WLAN-Verbindung erfolgreich hergestellt.");
+  } else {
+    Serial.println("ESP32_Werkstatt-01_DHT22: WLAN-Verbindung fehlgeschlagen.");
+  }
+  // Topics abonnieren
+  client.subscribe(topic_ib);
+}
+
+
+
+
+void loop() {
+  client.loop();
+  // read humidity
+  float relHum = dht.readHumidity();
+  // read temperature in Celsius
+  float temp = dht.readTemperature();
+
+  // check whether the reading is successful or not
+  if (isnan(temp) || isnan(relHum)) {
+    Serial.println("Failed DHT22 reading.");
+  } else {
+    Serial.print("rel. Humidity:");
+    Serial.print(relHum);
+    Serial.print("%");
+    Serial.print("  |  ");
+    Serial.print("Temperature:");
+    Serial.print(temp);
+    Serial.println("°C");
+    // Temperatur über MQTT veröffentlichen
+    client.publish(topic_t, String(temp).c_str());
+    // Luftfeuchte über MQTT veröffentlichen
+    client.publish(topic_LF, String(relHum).c_str());
+  }
+  delay(10000);  //5min wait 300000
+}
